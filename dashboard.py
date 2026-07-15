@@ -26,18 +26,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-from streamlit_gsheets import GSheetsConnection
-
-SHEET_URL = 'https://docs.google.com/spreadsheets/d/1_orYCWD4Z81gaOxhJZh4AF9iICAcpiDIM4NlJwDLxu8'
-
+SHEET_ID = '1_orYCWD4Z81gaOxhJZh4AF9iICAcpiDIM4NlJwDLxu8'
 @st.cache_data(ttl=10)
 def load_data():
     try:
-        conn = st.connection("gsheets", type=GSheetsConnection)
+        url_sol = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Solicitudes'
+        url_hist = f'https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=Historial_Estados'
         
-        # Leer ambas pestañas (la librería usa el nombre de la pestaña)
-        df_sol = conn.read(spreadsheet=SHEET_URL, worksheet="Solicitudes")
-        df_hist = conn.read(spreadsheet=SHEET_URL, worksheet="Historial_Estados")
+        df_sol = pd.read_csv(url_sol)
+        df_hist = pd.read_csv(url_hist)
         
         # Eliminar filas completamente vacías
         df_sol = df_sol.dropna(how='all')
@@ -54,9 +51,7 @@ def load_data():
         return pd.DataFrame(), pd.DataFrame()
             
     return df_sol, df_hist
-
 df_sol, df_hist = load_data()
-
 if not df_sol.empty and not df_hist.empty:
     # --- PROCESAMIENTO GENERAL ---
     hist_cierres = df_hist[df_hist['estado_destino_id'] == 'Cerrada'].copy()
@@ -77,7 +72,6 @@ if not df_sol.empty and not df_hist.empty:
             return "Cumple" if row['Fecha_Cierre_Real'] <= row['fecha_compromiso'] else "No Cumple"
             
     df_sol['Estado_Cumplimiento'] = df_sol.apply(get_cumplimiento, axis=1)
-
     # --- NAVEGACIÓN SIDEBAR ---
     st.sidebar.title("Navegación")
     st.sidebar.markdown("Selecciona la vista del Dashboard:")
