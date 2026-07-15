@@ -12,7 +12,7 @@ st.set_page_config(
     page_title="Dashboard CdG - Sistema Comercial",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # --- Custom CSS ---
@@ -82,8 +82,10 @@ if not df_sol.empty and not df_hist.empty:
     st.sidebar.markdown("Selecciona la vista del Dashboard:")
     pagina = st.sidebar.radio(
         "Páginas:",
-        ["Dashboard: Qualisys", "Dashboard: Intranet", "Gantt: Historial Estados"]
+        ["Dashboard: Qualisys", "Dashboard: Intranet", "Gantt: Historial Estados"],
+        index=1
     )
+
     
     # --- RENDERIZADO DE PÁGINAS ---
     if pagina.startswith("Dashboard"):
