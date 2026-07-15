@@ -59,19 +59,24 @@ if not df_sol.empty and not df_hist.empty:
     cierres_reales.rename(columns={'fecha_cambio': 'Fecha_Cierre_Real'}, inplace=True)
     df_sol = pd.merge(df_sol, cierres_reales, on='id_solicitud', how='left')
     
-    df_sol['fecha_compromiso'] = pd.to_datetime(df_sol['fecha_compromiso'], errors='coerce')
-    df_sol['Fecha_Cierre_Real'] = pd.to_datetime(df_sol['Fecha_Cierre_Real'], errors='coerce')
-    df_sol['fecha_solicitud'] = pd.to_datetime(df_sol['fecha_solicitud'], errors='coerce')
-    df_sol['fecha_cierre'] = pd.to_datetime(df_sol['fecha_cierre'], errors='coerce')
+    df_sol['fecha_compromiso'] = pd.to_datetime(df_sol['fecha_compromiso'], errors='coerce', dayfirst=True)
+    df_sol['Fecha_Cierre_Real'] = pd.to_datetime(df_sol['Fecha_Cierre_Real'], errors='coerce', dayfirst=True)
+    df_sol['fecha_solicitud'] = pd.to_datetime(df_sol['fecha_solicitud'], errors='coerce', dayfirst=True)
+    df_sol['fecha_cierre'] = pd.to_datetime(df_sol['fecha_cierre'], errors='coerce', dayfirst=True)
     
     def get_cumplimiento(row):
         if pd.isnull(row['fecha_compromiso']): return "Sin Compromiso"
-        if pd.isnull(row['Fecha_Cierre_Real']):
+        if row['estado_actual'] != 'Cerrada':
             return "En Plazo" if datetime.datetime.now() <= row['fecha_compromiso'] else "Atrasado (Abierto)"
         else:
-            return "Cumple" if row['Fecha_Cierre_Real'] <= row['fecha_compromiso'] else "No Cumple"
+            # Si está cerrada, evaluar contra la fecha de cierre real (o fecha_cierre)
+            fecha_cierre_final = row['Fecha_Cierre_Real'] if pd.notnull(row['Fecha_Cierre_Real']) else row['fecha_cierre']
+            if pd.isnull(fecha_cierre_final):
+                return "Cerrada (Sin Fecha)"
+            return "Cumple" if fecha_cierre_final <= row['fecha_compromiso'] else "No Cumple"
             
     df_sol['Estado_Cumplimiento'] = df_sol.apply(get_cumplimiento, axis=1)
+
     # --- NAVEGACIÓN SIDEBAR ---
     st.sidebar.title("Navegación")
     st.sidebar.markdown("Selecciona la vista del Dashboard:")
@@ -170,8 +175,8 @@ if not df_sol.empty and not df_hist.empty:
         # Construir datos para Gantt
         gantt_data = []
         # Asegurar fechas en datetime
-        df_hist['fecha_cambio'] = pd.to_datetime(df_hist['fecha_cambio'])
-        df_sol['fecha_solicitud'] = pd.to_datetime(df_sol['fecha_solicitud'])
+        df_hist['fecha_cambio'] = pd.to_datetime(df_hist['fecha_cambio'], errors='coerce', dayfirst=True)
+        df_sol['fecha_solicitud'] = pd.to_datetime(df_sol['fecha_solicitud'], errors='coerce', dayfirst=True)
         
         # --- FILTROS ---
         col_f1, col_f2 = st.columns([1, 2])
