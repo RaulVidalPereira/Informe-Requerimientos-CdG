@@ -245,12 +245,12 @@ if not df_sol.empty and not df_hist.empty:
         if not df_gantt.empty:
             # Definimos un mapa fijo de colores para cada estado
             mapa_colores = {
-                'Registrada': '#FF9F9F',           # Rojo pastel
+                'Registrada': '#F7DC6F',           # Amarillo fuerte  
                 'Priorizada': '#FFD085',           # Naranja/Amarillo pastel
-                'En desarrollo': '#85C1E9',        # Azul pastel
+                'En desarrollo': '#88D8B0',        # Verde azulado
                 'En pruebas': '#C39BD3',           # Morado pastel
-                'Lista para producción': '#88D8B0',# Verde azulado
-                'Pausada': '#F7DC6F',              # Amarillo fuerte
+                'Lista para producción': '#FF9F9F',# Rojo pastel
+                'Pausada': '#85C1E9',              # Azul pastel 
                 'Anulada': '#D5D8DC',              # Gris
                 'Cerrada': '#7DCEA0'               # Verde 
             }
