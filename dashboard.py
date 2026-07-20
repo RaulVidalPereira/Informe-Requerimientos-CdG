@@ -243,10 +243,22 @@ if not df_sol.empty and not df_hist.empty:
         df_gantt = pd.DataFrame(gantt_data)
         
         if not df_gantt.empty:
+            # Definimos un mapa fijo de colores para cada estado
+            mapa_colores = {
+                'Registrada': '#FF9F9F',           # Rojo pastel
+                'Priorizada': '#FFD085',           # Naranja/Amarillo pastel
+                'En desarrollo': '#85C1E9',        # Azul pastel
+                'En pruebas': '#C39BD3',           # Morado pastel
+                'Lista para producción': '#88D8B0',# Verde azulado
+                'Pausada': '#F7DC6F',              # Amarillo fuerte
+                'Anulada': '#D5D8DC',              # Gris
+                'Cerrada': '#7DCEA0'               # Verde 
+            }
+
             fig_gantt = px.timeline(
                 df_gantt, x_start="Start", x_end="Finish", y="Task", color="Estado",
                 title="Ciclo de Vida de las Solicitudes",
-                color_discrete_sequence=px.colors.qualitative.Pastel
+                color_discrete_map=mapa_colores
             )
             fig_gantt.update_yaxes(autorange="reversed")
             fig_gantt.update_xaxes(range=[start_date_filter, end_date_filter])
