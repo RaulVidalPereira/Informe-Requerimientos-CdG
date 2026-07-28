@@ -210,8 +210,7 @@ if not df_sol.empty and not df_hist.empty:
         # Filtrar por sistema, excluir las 'Anulada' y ordenar de menor a mayor por ID
         df_filtrado = df_sol[(df_sol['sistema_id'] == sis_filter) & (df_sol['estado_actual'] != 'Anulada')]
         solicitudes_list = sorted(df_filtrado['id_solicitud'].dropna().unique())
-            
-        for sol_id in solicitudes_list:    
+               
         for sol_id in solicitudes_list:
             hist_sol = df_hist[df_hist['id_solicitud'] == sol_id].sort_values('fecha_cambio')
             if hist_sol.empty: continue
