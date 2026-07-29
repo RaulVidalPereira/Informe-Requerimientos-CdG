@@ -103,12 +103,14 @@ if not df_sol.empty and not df_hist.empty:
         else:
             # --- KPIs ---
             st.markdown("### Resumen de Solicitudes")
-            col1, col2, col3, col4, col5, col6 = st.columns(6)
+            # Cambiamos a 7 columnas para hacer espacio al nuevo estado
+            col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
             
             ingresados = len(df_view)
             pendientes = len(df_view[df_view['estado_actual'].isin(['Registrada', 'Priorizada'])])
             en_desarrollo = len(df_view[df_view['estado_actual'] == 'En desarrollo'])
             en_pruebas = len(df_view[df_view['estado_actual'] == 'En pruebas'])
+            esperando_val = len(df_view[df_view['estado_actual'] == 'Esperando validación'])
             listo_prd = len(df_view[df_view['estado_actual'] == 'Lista para producción'])
             implementados = len(df_view[df_view['estado_actual'] == 'Cerrada'])
             
@@ -116,8 +118,9 @@ if not df_sol.empty and not df_hist.empty:
             col2.metric("Pendientes", pendientes)
             col3.metric("En Desarrollo", en_desarrollo)
             col4.metric("En Pruebas", en_pruebas)
-            col5.metric("Listo PRD", listo_prd)
-            col6.metric("Implementados", implementados)
+            col5.metric("Espera Val.", esperando_val)
+            col6.metric("Listo PRD", listo_prd)
+            col7.metric("Implementados", implementados)
             
             st.markdown("---")
             
@@ -245,17 +248,25 @@ if not df_sol.empty and not df_hist.empty:
         df_gantt = pd.DataFrame(gantt_data)
         
         if not df_gantt.empty:
-            # Definimos un mapa fijo de colores para cada estado
+                        # Definimos un mapa fijo de colores para cada estado
             mapa_colores = {
-                'Registrada': '#F7DC6F',           # Amarillo fuerte  
-                'Priorizada': '#FFD085',           # Naranja/Amarillo pastel
-                'En desarrollo': '#88D8B0',        # Verde azulado
-                'En pruebas': '#C39BD3',           # Morado pastel
-                'Lista para producción': '#FF9F9F',# Rojo pastel
-                'Pausada': '#85C1E9',              # Azul pastel 
-                'Anulada': '#D5D8DC',              # Gris
-                'Cerrada': '#7DCEA0'               # Verde 
+                'Registrada': '#FFF59D',             # Amarillo claro
+                'Priorizada': '#FBC02D',             # Amarillo oscuro
+                'En desarrollo': '#A5D6A7',          # Verde suave
+                'En pruebas': '#FFCC80',             # Naranjo suave
+                'Esperando validación': '#EF9A9A',   # Rojo suave
+                'Lista para producción': '#C62828',  # Rojo oscuro
+                'Pausada': '#90CAF9',                # Azul
+                'Cerrada': '#4CAF50',                # (Mantuve el verde tradicional para Cerrada)
+                'Anulada': '#E0E0E0',                # Gris (Por si acaso, aunque ya está filtrada)
+                'Cancelada': '#E0E0E0'               # Gris (Equivalente)
             }
+
+            fig_gantt = px.timeline(
+                df_gantt, x_start="Start", x_end="Finish", y="Task", color="Estado",
+                title="Ciclo de Vida de las Solicitudes",
+                color_discrete_map=mapa_colores
+            )
 
             fig_gantt = px.timeline(
                 df_gantt, x_start="Start", x_end="Finish", y="Task", color="Estado",
