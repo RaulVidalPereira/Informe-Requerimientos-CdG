@@ -253,7 +253,7 @@ if not df_sol.empty and not df_hist.empty:
                 'Registrada': '#FFF59D',             # Amarillo claro
                 'Priorizada': '#FBC846',             # Amarillo oscuro
                 'En desarrollo': '#A5D6A7',          # Verde suave
-                'En pruebas': '#CC81FF',             # Morado
+                'En pruebas': '#AD82FF',             # Morado
                 'Esperando validación': '#EF9A9A',   # Rojo suave
                 'Lista para producción': '#DA4747',  # Rojo oscuro
                 'Pausada': '#90CAF9',                # Azul
