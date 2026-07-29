@@ -251,11 +251,11 @@ if not df_sol.empty and not df_hist.empty:
                         # Definimos un mapa fijo de colores para cada estado
             mapa_colores = {
                 'Registrada': '#FFF59D',             # Amarillo claro
-                'Priorizada': '#FBC02D',             # Amarillo oscuro
+                'Priorizada': '#FBC846',             # Amarillo oscuro
                 'En desarrollo': '#A5D6A7',          # Verde suave
-                'En pruebas': '#FFCC80',             # Naranjo suave
+                'En pruebas': '#FFAD34',             # Naranjo suave
                 'Esperando validación': '#EF9A9A',   # Rojo suave
-                'Lista para producción': '#C62828',  # Rojo oscuro
+                'Lista para producción': '#DA4747',  # Rojo oscuro
                 'Pausada': '#90CAF9',                # Azul
                 'Cerrada': '#4CAF50',                # (Mantuve el verde tradicional para Cerrada)
                 'Anulada': '#E0E0E0',                # Gris (Por si acaso, aunque ya está filtrada)
