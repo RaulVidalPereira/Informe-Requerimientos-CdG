@@ -170,8 +170,8 @@ if not df_sol.empty and not df_hist.empty:
                 )
                 
             with col_f2:
-                # Fecha por defecto: 1 de Abril del año actual
-                default_date = datetime.date(datetime.datetime.now().year, 4, 1)
+                # Fecha por defecto: últimos 3 meses (90 días atrás)
+                default_date = (datetime.datetime.now() - datetime.timedelta(days=90)).date()
                 mes_desde = st.date_input(
                     "Ingresadas desde:", 
                     value=default_date,
