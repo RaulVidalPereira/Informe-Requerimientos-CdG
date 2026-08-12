@@ -154,7 +154,7 @@ if not df_sol.empty and not df_hist.empty:
                 fig_meses.update_layout(title='Ingresados vs. Implementados por Mes', plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white', margin=dict(l=0, r=0, t=40, b=0))
                 st.plotly_chart(fig_meses, use_container_width=True)
                 
-                        st.markdown("---")
+            st.markdown("---")
             
             # --- PROMEDIO DE DÍAS POR ESTADO ---
             st.markdown("### ⏱️ Tiempos de Resolución")
