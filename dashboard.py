@@ -159,23 +159,42 @@ if not df_sol.empty and not df_hist.empty:
             # --- PROMEDIO DE DÍAS POR ESTADO ---
             st.markdown("### ⏱️ Tiempos de Resolución")
             
-            # Filtro de prioridad específico solo para este gráfico
-            prioridad_grafico = st.selectbox(
-                "Filtrar gráfico por Prioridad:", 
-                ["Todas", "Crítico", "Alta", "Media", "Baja"],
-                key="filtro_prioridad_tiempos"
-            )
+            # Usar columnas para poner los filtros lado a lado
+            col_f1, col_f2 = st.columns(2)
             
-            # Crear una copia de los datos para aplicar el filtro sin afectar al resto de la página
+            with col_f1:
+                prioridad_grafico = st.selectbox(
+                    "Filtrar gráfico por Prioridad:", 
+                    ["Todas", "Crítico", "Alta", "Media", "Baja"],
+                    key="filtro_prioridad_tiempos"
+                )
+                
+            with col_f2:
+                # Fecha por defecto: 1 de Abril del año actual
+                default_date = datetime.date(datetime.datetime.now().year, 4, 1)
+                mes_desde = st.date_input(
+                    "Ingresadas desde:", 
+                    value=default_date,
+                    key="filtro_fecha_tiempos"
+                )
+            
+            # Crear copia de datos
             df_tiempos = df_view.copy()
+            
+            # Convertir fechas para el cálculo
+            df_tiempos['fecha_solicitud_dt'] = pd.to_datetime(df_tiempos['fecha_solicitud'], errors='coerce', dayfirst=True)
+            df_hist['fecha_cambio'] = pd.to_datetime(df_hist['fecha_cambio'], errors='coerce', dayfirst=True)
+            
+            # Aplicar filtro de fecha (desde el mes/día seleccionado en adelante)
+            if pd.notnull(mes_desde):
+                mes_desde_dt = pd.to_datetime(mes_desde)
+                df_tiempos = df_tiempos[df_tiempos['fecha_solicitud_dt'] >= mes_desde_dt]
+            
+            # Aplicar filtro de prioridad
             if prioridad_grafico != "Todas":
                 df_tiempos = df_tiempos[df_tiempos['prioridad'] == prioridad_grafico]
             
             estado_durations = []
-            
-            # Convertir fechas para el cálculo
-            df_hist['fecha_cambio'] = pd.to_datetime(df_hist['fecha_cambio'], errors='coerce', dayfirst=True)
-            df_tiempos['fecha_solicitud_dt'] = pd.to_datetime(df_tiempos['fecha_solicitud'], errors='coerce', dayfirst=True)
             
             for sol_id in df_tiempos['id_solicitud'].unique():
                 hist_sol = df_hist[df_hist['id_solicitud'] == sol_id].sort_values('fecha_cambio')
@@ -221,7 +240,7 @@ if not df_sol.empty and not df_hist.empty:
                 fig_avg.update_layout(xaxis={'categoryorder':'total descending'}, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white', margin=dict(l=0, r=0, t=40, b=0))
                 st.plotly_chart(fig_avg, use_container_width=True)
             else:
-                st.info("No hay suficientes datos de historial para calcular los promedios con esta prioridad.")
+                st.info("No hay suficientes datos de historial para calcular los promedios con los filtros seleccionados.")
                 
             st.markdown("---")
             
