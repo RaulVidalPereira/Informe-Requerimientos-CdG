@@ -159,17 +159,29 @@ if not df_sol.empty and not df_hist.empty:
             # --- PROMEDIO DE DÍAS POR ESTADO ---
             st.markdown("### ⏱️ Tiempos de Resolución")
             
+            # Filtro de prioridad específico solo para este gráfico
+            prioridad_grafico = st.selectbox(
+                "Filtrar gráfico por Prioridad:", 
+                ["Todas", "Crítico", "Alta", "Media", "Baja"],
+                key="filtro_prioridad_tiempos"
+            )
+            
+            # Crear una copia de los datos para aplicar el filtro sin afectar al resto de la página
+            df_tiempos = df_view.copy()
+            if prioridad_grafico != "Todas":
+                df_tiempos = df_tiempos[df_tiempos['prioridad'] == prioridad_grafico]
+            
             estado_durations = []
             
             # Convertir fechas para el cálculo
             df_hist['fecha_cambio'] = pd.to_datetime(df_hist['fecha_cambio'], errors='coerce', dayfirst=True)
-            df_view['fecha_solicitud_dt'] = pd.to_datetime(df_view['fecha_solicitud'], errors='coerce', dayfirst=True)
+            df_tiempos['fecha_solicitud_dt'] = pd.to_datetime(df_tiempos['fecha_solicitud'], errors='coerce', dayfirst=True)
             
-            for sol_id in df_view['id_solicitud'].unique():
+            for sol_id in df_tiempos['id_solicitud'].unique():
                 hist_sol = df_hist[df_hist['id_solicitud'] == sol_id].sort_values('fecha_cambio')
                 if hist_sol.empty: continue
                 
-                sol_info = df_view[df_view['id_solicitud'] == sol_id].iloc[0]
+                sol_info = df_tiempos[df_tiempos['id_solicitud'] == sol_id].iloc[0]
                 last_date = sol_info['fecha_solicitud_dt']
                 
                 for index, row in hist_sol.iterrows():
@@ -179,12 +191,16 @@ if not df_sol.empty and not df_hist.empty:
                         if fecha_fin < last_date: # Corregir desfases de fechas
                             fecha_fin = last_date + datetime.timedelta(days=1)
                         dias = (fecha_fin - last_date).days
-                        estado_durations.append({'Estado': estado, 'Dias': dias})
+                        
+                        # EXCLUIR PAUSADA del historial
+                        if estado != 'Pausada': 
+                            estado_durations.append({'Estado': estado, 'Dias': dias})
+                            
                     last_date = fecha_fin
                     
-                # Sumar el tiempo que lleva en el estado actual (si no está cerrada)
+                # Sumar el tiempo que lleva en el estado actual (si no está cerrada ni pausada)
                 estado_actual = sol_info['estado_actual']
-                if estado_actual not in ['Cerrada', 'Anulada', 'Cancelada']:
+                if estado_actual not in ['Cerrada', 'Anulada', 'Cancelada', 'Pausada']:
                     fecha_fin_actual = datetime.datetime.now()
                     if pd.notnull(last_date):
                         if fecha_fin_actual < last_date:
@@ -194,7 +210,6 @@ if not df_sol.empty and not df_hist.empty:
             
             if estado_durations:
                 df_dur = pd.DataFrame(estado_durations)
-                # Agrupar por estado y sacar el promedio
                 df_avg_dur = df_dur.groupby('Estado')['Dias'].mean().reset_index()
                 df_avg_dur['Dias'] = df_avg_dur['Dias'].round(1) # Redondear a 1 decimal
                 
@@ -206,7 +221,7 @@ if not df_sol.empty and not df_hist.empty:
                 fig_avg.update_layout(xaxis={'categoryorder':'total descending'}, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white', margin=dict(l=0, r=0, t=40, b=0))
                 st.plotly_chart(fig_avg, use_container_width=True)
             else:
-                st.info("No hay suficientes datos de historial para calcular los promedios.")
+                st.info("No hay suficientes datos de historial para calcular los promedios con esta prioridad.")
                 
             st.markdown("---")
             
