@@ -272,11 +272,18 @@ if not df_sol.empty and not df_hist.empty:
         df_sol['fecha_solicitud'] = pd.to_datetime(df_sol['fecha_solicitud'], errors='coerce', dayfirst=True)
         
         # --- FILTROS ---
-        col_f1, col_f2 = st.columns([1, 2])
+        # Dividimos en 3 columnas
+        col_f1, col_f2, col_f3 = st.columns([1, 1, 2])
+        
         with col_f1:
             sis_filter = st.selectbox("Filtrar por Sistema", ["Qualisys", "Intranet"])
+            
+        with col_f2:
+            # Obtener lista de áreas disponibles para el sistema seleccionado
+            areas_disponibles = ['Todas'] + sorted(df_sol[df_sol['sistema_id'] == sis_filter]['area_solicitante_id'].dropna().astype(str).unique())
+            area_filter = st.selectbox("Filtrar por Área", areas_disponibles)
         
-        # Slider de fechas
+        # Parámetros para el slider de fechas
         min_d = df_sol['fecha_solicitud'].min()
         max_d = datetime.datetime.now()
         
@@ -286,7 +293,7 @@ if not df_sol.empty and not df_hist.empty:
         default_start = (max_d - datetime.timedelta(days=30)).date()
         if default_start < min_d.date(): default_start = min_d.date()
         
-        with col_f2:
+        with col_f3:
             date_filter = st.slider(
                 "Filtrar por Fecha",
                 min_value=min_d.date(),
@@ -298,10 +305,16 @@ if not df_sol.empty and not df_hist.empty:
         start_date_filter = pd.to_datetime(date_filter[0])
         end_date_filter = pd.to_datetime(date_filter[1])
         
-        # Filtrar por sistema, excluir las 'Anulada' y ordenar de menor a mayor por ID
-        df_filtrado = df_sol[(df_sol['sistema_id'] == sis_filter) & (df_sol['estado_actual'] != 'Anulada')]
-        solicitudes_list = sorted(df_filtrado['id_solicitud'].dropna().unique())
-               
+        # Filtro maestro de solicitudes
+        filtro_base = (df_sol['sistema_id'] == sis_filter) & (df_sol['estado_actual'] != 'Anulada') & (df_sol['estado_actual'] != 'Cancelada')
+        
+        # Si eligió un área específica, la agregamos al filtro
+        if area_filter != 'Todas':
+            filtro_base = filtro_base & (df_sol['area_solicitante_id'] == area_filter)
+            
+        # Lista limpia y ORDENADA de solicitudes
+        solicitudes_list = sorted(df_sol[filtro_base]['id_solicitud'].unique())
+            
         for sol_id in solicitudes_list:
             hist_sol = df_hist[df_hist['id_solicitud'] == sol_id].sort_values('fecha_cambio')
             if hist_sol.empty: continue
