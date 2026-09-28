@@ -9,7 +9,7 @@ import datetime
 
 # --- Page Configuration ---
 st.set_page_config(
-    page_title="Dashboard CdG - Sistema Comercial",
+    page_title="Dashboard - Sistemad BDIV",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -89,7 +89,7 @@ if not df_sol.empty and not df_hist.empty:
     
     # --- RENDERIZADO DE PÁGINAS ---
     if pagina.startswith("Dashboard"):
-        st.title(f"🚀 Requerimientos CdG - {pagina.split(': ')[1]}")
+        st.title(f"🚀 Requerimientos Sistemas BDIV - {pagina.split(': ')[1]}")
         
         # Filtrar datos por sistema
         df_view = df_sol.copy()
