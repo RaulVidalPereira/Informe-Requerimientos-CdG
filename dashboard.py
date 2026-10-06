@@ -6,6 +6,8 @@ import tempfile
 import shutil
 import os
 import datetime
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -82,10 +84,126 @@ if not df_sol.empty and not df_hist.empty:
     st.sidebar.markdown("Selecciona la vista del Dashboard:")
     pagina = st.sidebar.radio(
         "Páginas:",
-        ["Dashboard: Qualisys", "Dashboard: Intranet", "Gantt: Historial Estados", "📄 Reporte Diario (Exportable)"],
+        ["Dashboard: Qualisys", "Dashboard: Intranet", "Gantt: Historial Estados"],
         index=1
     )
 
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Exportar Reporte")
+    
+    if st.sidebar.button("⚙️ Preparar Reporte en Imagen"):
+        with st.spinner("Construyendo imagen... (puede tardar unos segundos)"):
+            try:
+                import kaleido
+                
+                # Crear lienzo gigante con 8 espacios
+                fig = make_subplots(
+                    rows=8, cols=1,
+                    vertical_spacing=0.04,
+                    subplot_titles=(
+                        "1. QUALISYS - Resumen de Solicitudes", 
+                        "2. QUALISYS - Recuento por Estado", 
+                        "3. QUALISYS - Ingresados vs Implementados",
+                        "4. QUALISYS - Tiempos de Resolución",
+                        "5. INTRANET - Resumen de Solicitudes",
+                        "6. INTRANET - Recuento por Estado",
+                        "7. INTRANET - Ingresados vs Implementados",
+                        "8. INTRANET - Tiempos de Resolución"
+                    ),
+                    specs=[
+                        [{"type": "domain"}], [{"type": "xy"}], [{"type": "xy"}], [{"type": "xy"}],
+                        [{"type": "domain"}], [{"type": "xy"}], [{"type": "xy"}], [{"type": "xy"}],
+                    ],
+                    row_heights=[0.06, 0.15, 0.15, 0.14, 0.06, 0.15, 0.15, 0.14]
+                )
+                
+                def add_sys(sys_name, row_off):
+                    dfs = df_sol[df_sol['sistema_id'] == sys_name]
+                    
+                    # 1. Tabla de KPIs
+                    ing = len(dfs)
+                    pend = len(dfs[dfs['estado_actual'].isin(['Registrada', 'Priorizada'])])
+                    des = len(dfs[dfs['estado_actual'] == 'En desarrollo'])
+                    pru = len(dfs[dfs['estado_actual'] == 'En pruebas'])
+                    val = len(dfs[dfs['estado_actual'] == 'Esperando validación'])
+                    prd = len(dfs[dfs['estado_actual'] == 'Lista para producción'])
+                    imp = len(dfs[dfs['estado_actual'] == 'Cerrada'])
+                    
+                    fig.add_trace(go.Table(
+                        header=dict(values=["Ingresados", "Pendientes", "Desarrollo", "Pruebas", "Espera Val.", "Listo PRD", "Implement."], fill_color='#2c3e50', font=dict(color='white')),
+                        cells=dict(values=[[ing], [pend], [des], [pru], [val], [prd], [imp]], fill_color='#ecf0f1', height=30)
+                    ), row=row_off, col=1)
+                    
+                    # 2. Recuento por estado
+                    est_counts = dfs['estado_actual'].value_counts().reset_index()
+                    est_counts.columns = ['Estado', 'Cantidad']
+                    fig.add_trace(go.Bar(y=est_counts['Estado'], x=est_counts['Cantidad'], orientation='h', marker_color='#3498db'), row=row_off+1, col=1)
+                    
+                    # 3. Ingresos vs Implementados
+                    df_i = dfs.dropna(subset=['fecha_solicitud']).copy()
+                    df_i['Mes'] = df_i['fecha_solicitud'].dt.to_period('M').astype(str)
+                    ingresos = df_i.groupby('Mes').size().reset_index(name='Ingresados')
+                    
+                    df_c = dfs.dropna(subset=['fecha_cierre']).copy()
+                    df_c['Mes'] = df_c['fecha_cierre'].dt.to_period('M').astype(str)
+                    implementados = df_c.groupby('Mes').size().reset_index(name='Implementados')
+                    
+                    meses_df = pd.merge(ingresos, implementados, on='Mes', how='outer').fillna(0).sort_values('Mes')
+                    fig.add_trace(go.Bar(x=meses_df['Mes'], y=meses_df['Ingresados'], name='Ingresados', marker_color='#34495e'), row=row_off+2, col=1)
+                    fig.add_trace(go.Scatter(x=meses_df['Mes'], y=meses_df['Implementados'], name='Implementados', mode='lines+markers', line=dict(color='#2ecc71', width=4)), row=row_off+2, col=1)
+                    
+                    # 4. Tiempos Promedio
+                    dft = dfs.copy()
+                    fecha_limite = pd.to_datetime((datetime.datetime.now() - datetime.timedelta(days=90)).date())
+                    dft['fecha_solicitud_dt'] = pd.to_datetime(dft['fecha_solicitud'], errors='coerce', dayfirst=True)
+                    dft = dft[dft['fecha_solicitud_dt'] >= fecha_limite]
+                    dfh = df_hist.copy()
+                    dfh['fecha_cambio'] = pd.to_datetime(dfh['fecha_cambio'], errors='coerce', dayfirst=True)
+                    
+                    estado_durations = []
+                    for sol_id in dft['id_solicitud'].unique():
+                        hist_sol = dfh[dfh['id_solicitud'] == sol_id].sort_values('fecha_cambio')
+                        if hist_sol.empty: continue
+                        sol_info = dft[dft['id_solicitud'] == sol_id].iloc[0]
+                        last_date = sol_info['fecha_solicitud_dt']
+                        for index, row in hist_sol.iterrows():
+                            estado = row['estado_origen_id']
+                            fecha_fin = row['fecha_cambio']
+                            if pd.notnull(last_date) and pd.notnull(fecha_fin):
+                                if fecha_fin < last_date: fecha_fin = last_date + datetime.timedelta(days=1)
+                                dias = (fecha_fin - last_date).days
+                                if estado != 'Pausada': estado_durations.append({'Estado': estado, 'Dias': dias})
+                            last_date = fecha_fin
+                        estado_actual = sol_info['estado_actual']
+                        if estado_actual not in ['Cerrada', 'Anulada', 'Cancelada', 'Pausada']:
+                            fecha_fin_actual = datetime.datetime.now()
+                            if pd.notnull(last_date):
+                                if fecha_fin_actual < last_date: fecha_fin_actual = last_date + datetime.timedelta(days=1)
+                                dias = (fecha_fin_actual - last_date).days
+                                estado_durations.append({'Estado': estado_actual, 'Dias': dias})
+                    
+                    if estado_durations:
+                        df_dur = pd.DataFrame(estado_durations)
+                        df_avg_dur = df_dur.groupby('Estado')['Dias'].mean().reset_index()
+                        fig.add_trace(go.Bar(x=df_avg_dur['Estado'], y=df_avg_dur['Dias'].round(1), text=df_avg_dur['Dias'].round(1), marker_color='#9b59b6'), row=row_off+3, col=1)
+
+                add_sys("Qualisys", 1)
+                add_sys("Intranet", 5)
+                
+                fig.update_layout(height=3200, width=1200, title_text="Reporte Ejecutivo Diario - Sistemas BDIV", showlegend=False, paper_bgcolor='white', plot_bgcolor='white')
+                
+                # Convertir a imagen
+                img_bytes = fig.to_image(format="png")
+                
+                st.sidebar.success("¡Imagen Lista!")
+                st.sidebar.download_button(
+                    label="⬇️ Descargar Archivo .PNG",
+                    data=img_bytes,
+                    file_name=f"Reporte_Diario_{datetime.datetime.now().strftime('%d_%m_%Y')}.png",
+                    mime="image/png"
+                )
+            except ImportError:
+                st.sidebar.error("Error: Recuerda agregar 'kaleido==0.1.0.post1' a tu archivo requirements.txt")
     
     # --- RENDERIZADO DE PÁGINAS ---
     if pagina.startswith("Dashboard"):
@@ -383,98 +501,5 @@ if not df_sol.empty and not df_hist.empty:
             st.dataframe(df_gantt)
         else:
             st.warning("No hay suficientes datos de historial en este rango de fechas para generar el Gantt.")
-
-    elif pagina == "📄 Reporte Diario (Exportable)":
-        st.title("📄 Reporte Diario de Sistemas")
-        st.markdown("Vista optimizada para exportar. Toma una captura de pantalla o presiona `Ctrl + P` para guardar como PDF.")
-        st.markdown("---")
-        
-        # Función auxiliar para no repetir código entre sistemas
-        def generar_seccion_reporte(df_sistema, nombre_sistema, df_hist_completo):
-            st.markdown(f"## Requerimientos Sistemas BDIV - {nombre_sistema}")
-            
-            # 1. Resumen de Solicitudes (KPIs)
-            st.markdown("#### Resumen de Solicitudes")
-            col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
-            
-            ing = len(df_sistema)
-            pend = len(df_sistema[df_sistema['estado_actual'].isin(['Registrada', 'Priorizada'])])
-            des = len(df_sistema[df_sistema['estado_actual'] == 'En desarrollo'])
-            pru = len(df_sistema[df_sistema['estado_actual'] == 'En pruebas'])
-            val = len(df_sistema[df_sistema['estado_actual'] == 'Esperando validación'])
-            prd = len(df_sistema[df_sistema['estado_actual'] == 'Lista para producción'])
-            imp = len(df_sistema[df_sistema['estado_actual'] == 'Cerrada'])
-            
-            col1.metric("Ingresados", ing)
-            col2.metric("Pendientes", pend)
-            col3.metric("Desarrollo", des)
-            col4.metric("Pruebas", pru)
-            col5.metric("Espera Val.", val)
-            col6.metric("Listo PRD", prd)
-            col7.metric("Implement.", imp)
-            
-            # 2. Tiempos de Resolución (Últimos 3 meses)
-            st.markdown("#### Tiempos de Resolución")
-            
-            df_t = df_sistema.copy()
-            fecha_limite = pd.to_datetime((datetime.datetime.now() - datetime.timedelta(days=90)).date())
-            df_t['fecha_solicitud_dt'] = pd.to_datetime(df_t['fecha_solicitud'], errors='coerce', dayfirst=True)
-            df_t = df_t[df_t['fecha_solicitud_dt'] >= fecha_limite]
-            
-            # Copiar y parsear historial
-            df_h = df_hist_completo.copy()
-            df_h['fecha_cambio'] = pd.to_datetime(df_h['fecha_cambio'], errors='coerce', dayfirst=True)
-            
-            estado_durations = []
-            for sol_id in df_t['id_solicitud'].unique():
-                hist_sol = df_h[df_h['id_solicitud'] == sol_id].sort_values('fecha_cambio')
-                if hist_sol.empty: continue
-                
-                sol_info = df_t[df_t['id_solicitud'] == sol_id].iloc[0]
-                last_date = sol_info['fecha_solicitud_dt']
-                
-                for index, row in hist_sol.iterrows():
-                    estado = row['estado_origen_id']
-                    fecha_fin = row['fecha_cambio']
-                    if pd.notnull(last_date) and pd.notnull(fecha_fin):
-                        if fecha_fin < last_date: fecha_fin = last_date + datetime.timedelta(days=1)
-                        dias = (fecha_fin - last_date).days
-                        if estado != 'Pausada': estado_durations.append({'Estado': estado, 'Dias': dias})
-                    last_date = fecha_fin
-                    
-                estado_actual = sol_info['estado_actual']
-                if estado_actual not in ['Cerrada', 'Anulada', 'Cancelada', 'Pausada']:
-                    fecha_fin_actual = datetime.datetime.now()
-                    if pd.notnull(last_date):
-                        if fecha_fin_actual < last_date: fecha_fin_actual = last_date + datetime.timedelta(days=1)
-                        dias = (fecha_fin_actual - last_date).days
-                        estado_durations.append({'Estado': estado_actual, 'Dias': dias})
-            
-            if estado_durations:
-                df_dur = pd.DataFrame(estado_durations)
-                df_avg_dur = df_dur.groupby('Estado')['Dias'].mean().reset_index()
-                df_avg_dur['Dias'] = df_avg_dur['Dias'].round(1) 
-                
-                fig_avg = px.bar(
-                    df_avg_dur, x='Estado', y='Dias',
-                    title=f'Promedio de Días (Últimos 3 Meses)', 
-                    text='Dias', color='Dias', color_continuous_scale='Purp', height=350
-                )
-                fig_avg.update_layout(xaxis={'categoryorder':'total descending'}, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white', margin=dict(l=0, r=0, t=40, b=0))
-                st.plotly_chart(fig_avg, use_container_width=True)
-            else:
-                st.info("Sin datos recientes suficientes.")
-            
-            st.markdown("<br><br>", unsafe_allow_html=True)
-            
-        # Generar las secciones usando la función
-        df_intranet = df_sol[df_sol['sistema_id'] == 'Intranet']
-        generar_seccion_reporte(df_intranet, "Intranet", df_hist)
-        
-        st.markdown("---")
-        
-        df_qualisys = df_sol[df_sol['sistema_id'] == 'Qualisys']
-        generar_seccion_reporte(df_qualisys, "Qualisys", df_hist)
-
 else:
     st.warning("No hay datos disponibles en el archivo Excel o están vacíos.")
