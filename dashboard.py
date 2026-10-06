@@ -211,7 +211,7 @@ if not df_sol.empty and not df_hist.empty:
                     df_avg_dur = df_dur.groupby('Estado')['Dias'].mean().reset_index().sort_values('Dias', ascending=False)
                     df_avg_dur['Dias'] = df_avg_dur['Dias'].round(1)
                     
-                    cmap = cm.get_cmap('Purples')
+                    cmap = plt.get_cmap('Purples')
                     if df_avg_dur['Dias'].max() > 0:
                         norm = mcolors.Normalize(vmin=0, vmax=df_avg_dur['Dias'].max())
                         colors = [cmap(norm(v)*0.5 + 0.5) for v in df_avg_dur['Dias']]
