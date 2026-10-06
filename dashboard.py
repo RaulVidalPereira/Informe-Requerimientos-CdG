@@ -383,8 +383,6 @@ if not df_sol.empty and not df_hist.empty:
             st.dataframe(df_gantt)
         else:
             st.warning("No hay suficientes datos de historial en este rango de fechas para generar el Gantt.")
-else:
-    st.warning("No hay datos disponibles en el archivo Excel o están vacíos.")
 
     elif pagina == "📄 Reporte Diario (Exportable)":
         st.title("📄 Reporte Diario de Sistemas")
@@ -477,3 +475,6 @@ else:
         
         df_qualisys = df_sol[df_sol['sistema_id'] == 'Qualisys']
         generar_seccion_reporte(df_qualisys, "Qualisys", df_hist)
+
+else:
+    st.warning("No hay datos disponibles en el archivo Excel o están vacíos.")
