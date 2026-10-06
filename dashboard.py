@@ -82,7 +82,7 @@ if not df_sol.empty and not df_hist.empty:
     st.sidebar.markdown("Selecciona la vista del Dashboard:")
     pagina = st.sidebar.radio(
         "Páginas:",
-        ["Dashboard: Qualisys", "Dashboard: Intranet", "Gantt: Historial Estados"],
+        ["Dashboard: Qualisys", "Dashboard: Intranet", "Gantt: Historial Estados", "📄 Reporte Diario (Exportable)"],
         index=1
     )
 
