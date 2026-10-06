@@ -8,6 +8,9 @@ import os
 import datetime
 import io
 import matplotlib.pyplot as plt
+import matplotlib.patches as patches
+import matplotlib.colors as mcolors
+import matplotlib.cm as cm
 
 # --- Page Configuration ---
 st.set_page_config(
@@ -92,15 +95,27 @@ if not df_sol.empty and not df_hist.empty:
     st.sidebar.markdown("### Exportar Reporte")
 
     if st.sidebar.button("⚙️ Generar Imagen .PNG"):
-        with st.spinner("Dibujando reporte..."):
-            # Creamos el lienzo en blanco para la imagen (10x14 pulgadas)
-            fig, axes = plt.subplots(4, 1, figsize=(10, 14), gridspec_kw={'height_ratios': [1, 3, 1, 3]})
+        with st.spinner("Dibujando reporte idéntico al dashboard..."):
+            
+            # Crear figura gigante y ancha
+            fig = plt.figure(figsize=(20, 32))
             fig.patch.set_facecolor('white')
             
-            def dibujar_sistema(sys_name, ax_kpi, ax_bar):
+            # Grilla maestra: 10 filas, 2 columnas (simulando la estructura de tu web)
+            gs = fig.add_gridspec(10, 2, height_ratios=[0.5, 1.5, 4, 4, 0.5, 0.5, 1.5, 4, 4, 0.5], hspace=0.6, wspace=0.2)
+            
+            def dibujar_sistema(sys_name, ax_title, ax_kpi, ax_hbar, ax_combo, ax_vbar):
                 dfs = df_sol[df_sol['sistema_id'] == sys_name]
                 
-                # --- TABLA DE KPIs ---
+                # --- 0. TÍTULO ---
+                ax_title.axis('off')
+                ax_title.text(0, 0.5, f"🚀 Requerimientos Sistemas BDIV - {sys_name}", 
+                              ha='left', va='center', fontsize=30, fontweight='bold', color='#1f2937')
+                
+                # --- 1. TARJETAS DE KPIs (Estilo Streamlit) ---
+                ax_kpi.axis('off')
+                ax_kpi.text(0, 1.05, "Resumen de Solicitudes", transform=ax_kpi.transAxes, fontsize=18, fontweight='bold', color='#4b5563')
+                
                 ing = len(dfs)
                 pend = len(dfs[dfs['estado_actual'].isin(['Registrada', 'Priorizada'])])
                 des = len(dfs[dfs['estado_actual'] == 'En desarrollo'])
@@ -109,24 +124,58 @@ if not df_sol.empty and not df_hist.empty:
                 prd = len(dfs[dfs['estado_actual'] == 'Lista para producción'])
                 imp = len(dfs[dfs['estado_actual'] == 'Cerrada'])
                 
-                ax_kpi.axis('off')
-                ax_kpi.set_title(f"Requerimientos Sistemas BDIV - {sys_name}\nResumen de Solicitudes", fontsize=14, fontweight='bold', pad=15)
+                labels = ["Ingresados", "Pendientes", "En Desarrollo", "En Pruebas", "Espera Val.", "Listo PRD", "Implementados"]
+                values = [ing, pend, des, pru, val, prd, imp]
+                num_cards = len(labels)
                 
-                cols = ["Ingresados", "Pendientes", "Desarrollo", "Pruebas", "Espera Val.", "Listo PRD", "Implement."]
-                vals = [ing, pend, des, pru, val, prd, imp]
+                for i in range(num_cards):
+                    x = i / num_cards + 0.003
+                    w = (1 / num_cards) - 0.01
+                    # Dibujar el fondo negro redondeado de la tarjeta
+                    rect = patches.FancyBboxPatch((x, 0.05), w, 0.9, transform=ax_kpi.transAxes, boxstyle="round,pad=0.01,rounding_size=0.04", facecolor='#1f2937', edgecolor='none')
+                    ax_kpi.add_patch(rect)
+                    # Textos dentro de la tarjeta
+                    ax_kpi.text(x + 0.01, 0.7, labels[i], transform=ax_kpi.transAxes, color='#9ca3af', fontsize=12, va='center')
+                    ax_kpi.text(x + 0.01, 0.35, str(values[i]), transform=ax_kpi.transAxes, color='white', fontsize=32, fontweight='bold', va='center')
+
+                # --- 2. GRÁFICO: Recuento por Estado ---
+                ax_hbar.set_title("Recuento por Estado Actual", loc='left', fontsize=12, fontweight='bold', color='#4b5563', pad=15)
+                est_counts = dfs['estado_actual'].value_counts().sort_values(ascending=True)
+                if not est_counts.empty:
+                    bars = ax_hbar.barh(est_counts.index, est_counts.values, color='#0f4a8e')
+                    for bar in bars:
+                        val_bar = int(bar.get_width())
+                        if val_bar > 0:
+                            ax_hbar.text(val_bar - (val_bar*0.02), bar.get_y() + bar.get_height()/2, str(val_bar), ha='right', va='center', color='white', fontweight='bold', fontsize=10)
+                ax_hbar.spines['top'].set_visible(False)
+                ax_hbar.spines['right'].set_visible(False)
+                ax_hbar.tick_params(axis='y', colors='#4b5563')
                 
-                table = ax_kpi.table(cellText=[vals], colLabels=cols, loc='center', cellLoc='center')
-                table.scale(1, 2)
-                table.set_fontsize(11)
+                # --- 3. GRÁFICO: Ingresados vs Implementados ---
+                ax_combo.set_title("Ingresados vs. Implementados por Mes", loc='left', fontsize=12, fontweight='bold', color='#4b5563', pad=15)
+                df_i = dfs.dropna(subset=['fecha_solicitud']).copy()
+                df_i['Mes'] = df_i['fecha_solicitud'].dt.to_period('M').astype(str)
+                ingresos = df_i.groupby('Mes').size().reset_index(name='Ingresados')
                 
-                for (row, col), cell in table.get_celld().items():
-                    if row == 0:
-                        cell.set_text_props(weight='bold', color='white')
-                        cell.set_facecolor('#2c3e50')
-                    else:
-                        cell.set_facecolor('#ecf0f1')
+                df_c = dfs.dropna(subset=['fecha_cierre']).copy()
+                df_c['Mes'] = df_c['fecha_cierre'].dt.to_period('M').astype(str)
+                implementados = df_c.groupby('Mes').size().reset_index(name='Implementados')
                 
-                # --- GRÁFICO DE BARRAS (Tiempos) ---
+                meses_df = pd.merge(ingresos, implementados, on='Mes', how='outer').fillna(0).sort_values('Mes')
+                if not meses_df.empty:
+                    x_pos = range(len(meses_df))
+                    ax_combo.bar(x_pos, meses_df['Ingresados'], color='#3182ce', label='Ingresados')
+                    ax_combo.plot(x_pos, meses_df['Implementados'], color='#38a169', marker='o', linewidth=2, label='Implementados')
+                    ax_combo.set_xticks(x_pos)
+                    ax_combo.set_xticklabels(meses_df['Mes'], rotation=45, ha='right', color='#4b5563')
+                    ax_combo.legend(frameon=False, loc='upper right', labelcolor='#4b5563')
+                ax_combo.spines['top'].set_visible(False)
+                ax_combo.spines['right'].set_visible(False)
+
+                # --- 4. GRÁFICO: Tiempos de Resolución ---
+                ax_vbar.set_title("⏱ Tiempos de Resolución", loc='left', fontsize=18, fontweight='bold', color='#4b5563', pad=25)
+                ax_vbar.text(0, 1.05, "Promedio de Días que pasa una solicitud en cada estado", transform=ax_vbar.transAxes, fontsize=11, color='#6b7280')
+                
                 dft = dfs.copy()
                 fecha_limite = pd.to_datetime((datetime.datetime.now() - datetime.timedelta(days=90)).date())
                 dft['fecha_solicitud_dt'] = pd.to_datetime(dft['fecha_solicitud'], errors='coerce', dayfirst=True)
@@ -157,45 +206,63 @@ if not df_sol.empty and not df_hist.empty:
                             dias = (fecha_fin_actual - last_date).days
                             estado_durations.append({'Estado': estado_actual, 'Dias': dias})
                 
-                ax_bar.set_title(f"Tiempos de Resolución (Últimos 3 Meses)", fontsize=12, fontweight='bold')
                 if estado_durations:
                     df_dur = pd.DataFrame(estado_durations)
-                    df_avg_dur = df_dur.groupby('Estado')['Dias'].mean().reset_index()
+                    df_avg_dur = df_dur.groupby('Estado')['Dias'].mean().reset_index().sort_values('Dias', ascending=False)
                     df_avg_dur['Dias'] = df_avg_dur['Dias'].round(1)
                     
-                    # Dibujar barras
-                    bars = ax_bar.bar(df_avg_dur['Estado'], df_avg_dur['Dias'], color='#9b59b6')
+                    cmap = cm.get_cmap('Purples')
+                    if df_avg_dur['Dias'].max() > 0:
+                        norm = mcolors.Normalize(vmin=0, vmax=df_avg_dur['Dias'].max())
+                        colors = [cmap(norm(v)*0.5 + 0.5) for v in df_avg_dur['Dias']]
+                    else:
+                        colors = [cmap(0.5)] * len(df_avg_dur)
+                        
+                    bars = ax_vbar.bar(df_avg_dur['Estado'], df_avg_dur['Dias'], color=colors)
                     for bar in bars:
                         yval = bar.get_height()
-                        ax_bar.text(bar.get_x() + bar.get_width()/2, yval + 0.1, str(yval), ha='center', va='bottom', fontweight='bold')
+                        ax_vbar.text(bar.get_x() + bar.get_width()/2, yval + (yval*0.02), str(yval), ha='center', va='bottom', color='#4b5563', fontweight='bold', fontsize=11)
                     
-                    ax_bar.set_ylabel("Días Promedio")
-                    ax_bar.spines['top'].set_visible(False)
-                    ax_bar.spines['right'].set_visible(False)
+                    ax_vbar.spines['top'].set_visible(False)
+                    ax_vbar.spines['right'].set_visible(False)
+                    ax_vbar.set_ylabel("Días", color='#6b7280')
+                    ax_vbar.tick_params(axis='x', colors='#6b7280', labelsize=11)
+                    ax_vbar.tick_params(axis='y', colors='#6b7280')
                 else:
-                    ax_bar.text(0.5, 0.5, "Sin datos recientes", ha='center', va='center')
-                    ax_bar.axis('off')
+                    ax_vbar.text(0.5, 0.5, "Sin datos recientes", ha='center', va='center')
+                    ax_vbar.axis('off')
 
-            # Dibujamos Intranet arriba y Qualisys abajo
-            dibujar_sistema("Intranet", axes[0], axes[1])
-            dibujar_sistema("Qualisys", axes[2], axes[3])
+            # --- ASIGNAR BLOQUES AL LIENZO ---
+            # Intranet
+            ax_t_int = fig.add_subplot(gs[0, :]) # Título arriba
+            ax_k_int = fig.add_subplot(gs[1, :]) # KPIs abajo de título
+            ax_h_int = fig.add_subplot(gs[2, 0]) # Barras horizontales (Izquierda)
+            ax_c_int = fig.add_subplot(gs[2, 1]) # Combo Lineas (Derecha)
+            ax_v_int = fig.add_subplot(gs[3, :]) # Barras verticales abajo ocupando todo
+            dibujar_sistema("Intranet", ax_t_int, ax_k_int, ax_h_int, ax_c_int, ax_v_int)
             
-            plt.tight_layout()
+            # Qualisys
+            ax_t_qua = fig.add_subplot(gs[5, :])
+            ax_k_qua = fig.add_subplot(gs[6, :])
+            ax_h_qua = fig.add_subplot(gs[7, 0])
+            ax_c_qua = fig.add_subplot(gs[7, 1])
+            ax_v_qua = fig.add_subplot(gs[8, :])
+            dibujar_sistema("Qualisys", ax_t_qua, ax_k_qua, ax_h_qua, ax_c_qua, ax_v_qua)
             
-            # Convertimos el dibujo a una imagen PNG lista para descargar
+            # --- CONVERTIR A IMAGEN ---
             buf = io.BytesIO()
-            fig.savefig(buf, format='png', dpi=120, bbox_inches='tight', facecolor='white')
+            fig.savefig(buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
             img_bytes = buf.getvalue()
             plt.close(fig)
             
-            st.sidebar.success("¡Imagen Generada con Éxito!")
+            st.sidebar.success("¡Imagen Maestra Generada!")
             st.sidebar.download_button(
                 label="⬇️ Descargar Reporte (.PNG)",
                 data=img_bytes,
                 file_name=f"Reporte_Sistemas_{datetime.datetime.now().strftime('%d_%m_%Y')}.png",
                 mime="image/png"
             )
-            
+    
     # --- RENDERIZADO DE PÁGINAS ---
     if pagina.startswith("Dashboard"):
         st.title(f"🚀 Requerimientos Sistemas BDIV - {pagina.split(': ')[1]}")
