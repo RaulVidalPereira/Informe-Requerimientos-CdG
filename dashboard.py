@@ -386,3 +386,94 @@ if not df_sol.empty and not df_hist.empty:
 else:
     st.warning("No hay datos disponibles en el archivo Excel o están vacíos.")
 
+    elif pagina == "📄 Reporte Diario (Exportable)":
+        st.title("📄 Reporte Diario de Sistemas")
+        st.markdown("Vista optimizada para exportar. Toma una captura de pantalla o presiona `Ctrl + P` para guardar como PDF.")
+        st.markdown("---")
+        
+        # Función auxiliar para no repetir código entre sistemas
+        def generar_seccion_reporte(df_sistema, nombre_sistema, df_hist_completo):
+            st.markdown(f"## Requerimientos Sistemas BDIV - {nombre_sistema}")
+            
+            # 1. Resumen de Solicitudes (KPIs)
+            st.markdown("#### Resumen de Solicitudes")
+            col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
+            
+            ing = len(df_sistema)
+            pend = len(df_sistema[df_sistema['estado_actual'].isin(['Registrada', 'Priorizada'])])
+            des = len(df_sistema[df_sistema['estado_actual'] == 'En desarrollo'])
+            pru = len(df_sistema[df_sistema['estado_actual'] == 'En pruebas'])
+            val = len(df_sistema[df_sistema['estado_actual'] == 'Esperando validación'])
+            prd = len(df_sistema[df_sistema['estado_actual'] == 'Lista para producción'])
+            imp = len(df_sistema[df_sistema['estado_actual'] == 'Cerrada'])
+            
+            col1.metric("Ingresados", ing)
+            col2.metric("Pendientes", pend)
+            col3.metric("Desarrollo", des)
+            col4.metric("Pruebas", pru)
+            col5.metric("Espera Val.", val)
+            col6.metric("Listo PRD", prd)
+            col7.metric("Implement.", imp)
+            
+            # 2. Tiempos de Resolución (Últimos 3 meses)
+            st.markdown("#### Tiempos de Resolución")
+            
+            df_t = df_sistema.copy()
+            fecha_limite = pd.to_datetime((datetime.datetime.now() - datetime.timedelta(days=90)).date())
+            df_t['fecha_solicitud_dt'] = pd.to_datetime(df_t['fecha_solicitud'], errors='coerce', dayfirst=True)
+            df_t = df_t[df_t['fecha_solicitud_dt'] >= fecha_limite]
+            
+            # Copiar y parsear historial
+            df_h = df_hist_completo.copy()
+            df_h['fecha_cambio'] = pd.to_datetime(df_h['fecha_cambio'], errors='coerce', dayfirst=True)
+            
+            estado_durations = []
+            for sol_id in df_t['id_solicitud'].unique():
+                hist_sol = df_h[df_h['id_solicitud'] == sol_id].sort_values('fecha_cambio')
+                if hist_sol.empty: continue
+                
+                sol_info = df_t[df_t['id_solicitud'] == sol_id].iloc[0]
+                last_date = sol_info['fecha_solicitud_dt']
+                
+                for index, row in hist_sol.iterrows():
+                    estado = row['estado_origen_id']
+                    fecha_fin = row['fecha_cambio']
+                    if pd.notnull(last_date) and pd.notnull(fecha_fin):
+                        if fecha_fin < last_date: fecha_fin = last_date + datetime.timedelta(days=1)
+                        dias = (fecha_fin - last_date).days
+                        if estado != 'Pausada': estado_durations.append({'Estado': estado, 'Dias': dias})
+                    last_date = fecha_fin
+                    
+                estado_actual = sol_info['estado_actual']
+                if estado_actual not in ['Cerrada', 'Anulada', 'Cancelada', 'Pausada']:
+                    fecha_fin_actual = datetime.datetime.now()
+                    if pd.notnull(last_date):
+                        if fecha_fin_actual < last_date: fecha_fin_actual = last_date + datetime.timedelta(days=1)
+                        dias = (fecha_fin_actual - last_date).days
+                        estado_durations.append({'Estado': estado_actual, 'Dias': dias})
+            
+            if estado_durations:
+                df_dur = pd.DataFrame(estado_durations)
+                df_avg_dur = df_dur.groupby('Estado')['Dias'].mean().reset_index()
+                df_avg_dur['Dias'] = df_avg_dur['Dias'].round(1) 
+                
+                fig_avg = px.bar(
+                    df_avg_dur, x='Estado', y='Dias',
+                    title=f'Promedio de Días (Últimos 3 Meses)', 
+                    text='Dias', color='Dias', color_continuous_scale='Purp', height=350
+                )
+                fig_avg.update_layout(xaxis={'categoryorder':'total descending'}, plot_bgcolor='rgba(0,0,0,0)', paper_bgcolor='rgba(0,0,0,0)', font_color='white', margin=dict(l=0, r=0, t=40, b=0))
+                st.plotly_chart(fig_avg, use_container_width=True)
+            else:
+                st.info("Sin datos recientes suficientes.")
+            
+            st.markdown("<br><br>", unsafe_allow_html=True)
+            
+        # Generar las secciones usando la función
+        df_intranet = df_sol[df_sol['sistema_id'] == 'Intranet']
+        generar_seccion_reporte(df_intranet, "Intranet", df_hist)
+        
+        st.markdown("---")
+        
+        df_qualisys = df_sol[df_sol['sistema_id'] == 'Qualisys']
+        generar_seccion_reporte(df_qualisys, "Qualisys", df_hist)
