@@ -189,6 +189,8 @@ if not df_sol.empty and not df_hist.empty:
                     hist_sol = dfh[dfh['id_solicitud'] == sol_id].sort_values('fecha_cambio')
                     if hist_sol.empty: continue
                     sol_info = dft[dft['id_solicitud'] == sol_id].iloc[0]
+                    if sol_info['estado_actual'] == 'Pausada':
+                        continue
                     last_date = sol_info['fecha_solicitud_dt']
                     for index, row in hist_sol.iterrows():
                         estado = row['estado_origen_id']
@@ -377,6 +379,8 @@ if not df_sol.empty and not df_hist.empty:
                 if hist_sol.empty: continue
                 
                 sol_info = df_tiempos[df_tiempos['id_solicitud'] == sol_id].iloc[0]
+                if sol_info['estado_actual'] == 'Pausada':
+                    continue
                 last_date = sol_info['fecha_solicitud_dt']
                 
                 for index, row in hist_sol.iterrows():
